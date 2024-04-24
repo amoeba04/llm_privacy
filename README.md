@@ -1,3 +1,22 @@
+## Training
+
+- `./train_v1.1b` 내 sh 파일을 수정/실행해서 학습할 수 있습니다. (`train_v1.1b/train_polyglot5.8b_singleA100.sh` 추천)
+- `./train_v1.1b/README.md`에 각 파일 스크립트 기능에 대한 간략한 설명이 있습니다.
+
+## Evaluation
+
+- `./run_eval.sh` 실행 시 KOBEST (COPA, Hellaswag, BoolQ, SentiNeg, WiC) task에 대해 evaluation을 수행합니다. 결과에서 일반적으로 F1 score를 확인하는 것 같습니다.
+
+참고링크: [EluetherAI/lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness)
+
+참고논문: [KOBEST](https://arxiv.org/abs/2204.04541)
+
+
+
+(아래부터는 KoAlpaca repo 원본 README입니다.)
+
+
+---
 
 <p align="center" width="100%">
 <img src="assets/new_koalpaca_final.svg" alt="KoAlpaca icon" style="width: 200px; height:200px; display: block; margin: auto; border-radius: 50%;">
