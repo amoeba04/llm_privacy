@@ -1,3 +1,19 @@
+## Environment
+
+- A100 서버 privacy 계정의 privacy 환경을 사용하시면 됩니다.
+- 주요 패키지 버전은 다음과 같습니다.
+```
+torch=2.2.1+cu118
+transformers=4.40.0
+tokenizers=0.19.1
+datasets=2.19.0
+evaluate=0.4.1
+accelerate=0.29.3
+bitsandbytes=0.43.1
+peft=0.10.0
+gradio=3.50.0
+```
+
 ## Training
 
 - `./train_v1.1b` 내 sh 파일을 수정/실행해서 학습할 수 있습니다. (`train_v1.1b/train_polyglot5.8b_singleA100.sh` 추천)
