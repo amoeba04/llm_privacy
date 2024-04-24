@@ -11,6 +11,14 @@
 
 참고논문: [KOBEST](https://arxiv.org/abs/2204.04541)
 
+## Gradio Demo
+
+- `./webui/app_fix.py` 내 모델명을 원하는 huggingface 모델명으로 바꾼 후 아래 명령어를 실행합니다.
+
+```
+CUDA_VISIBLE_DEVICES=0 gradio app_fix.py
+```
+
 
 
 (아래부터는 KoAlpaca repo 원본 README입니다.)
