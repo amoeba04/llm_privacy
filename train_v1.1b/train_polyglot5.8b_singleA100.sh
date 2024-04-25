@@ -1,10 +1,9 @@
-# TODO: Test multi-GPU
 # Works on A100 80G single GPU
 CUDA_VISIBLE_DEVICES=1 python run_clm.py \
 --model_name_or_path='EleutherAI/polyglot-ko-5.8b' \
 --train_file='./KoAlpaca_v1.1a_textonly.json' \
 --num_train_epochs=3 \
---block_size=2048 \
+--block_size=1024 \
 --per_device_train_batch_size=1 \
 --gradient_accumulation_steps=128 \
 --torch_dtype=float16 \
