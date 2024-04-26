@@ -9,6 +9,7 @@ from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer
 # MODEL = "beomi/Llama-3-Open-Ko-8B-Instruct-preview"
 # MODEL = "chihoonlee10/T3Q-ko-solar-dpo-v6.0"
 MODEL = "yanolja/EEVE-Korean-Instruct-10.8B-v1.0"
+# MODEL = "./train_v1.1b/eeve-10.8b-privacy-sentence"
 tokenizer = AutoTokenizer.from_pretrained(MODEL)
 model = AutoModelForCausalLM.from_pretrained(
     MODEL,
@@ -40,6 +41,7 @@ def answer(state, state_chatbot, text):
         tokenize=False,
         # return_tensors="pt",
     )#.to(model.device)
+    print(inputs)
 
     terminators = [
         tokenizer.eos_token_id,
@@ -104,4 +106,4 @@ with gr.Blocks(css="#chatbot .overflow-y-auto{height:750px}") as demo:
     txt.submit(answer, [state, state_chatbot, txt], [state, state_chatbot, chatbot])
     txt.submit(lambda: "", None, txt)
 
-demo.launch(debug=False, server_name="0.0.0.0", share=True)
+demo.queue().launch(debug=True, server_name="0.0.0.0", share=True)
