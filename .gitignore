@@ -136,3 +136,5 @@ dmypy.json
 *.safetensors
 *.json
 *.bin
+*.pth
+*.pt
