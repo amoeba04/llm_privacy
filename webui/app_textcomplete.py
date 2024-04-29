@@ -8,8 +8,10 @@ from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer
 # MODEL = "TeamUNIVA/Komodo_7B_v1.0.0"
 # MODEL = "beomi/Llama-3-Open-Ko-8B-Instruct-preview"
 # MODEL = "chihoonlee10/T3Q-ko-solar-dpo-v6.0"
-MODEL = "yanolja/EEVE-Korean-Instruct-10.8B-v1.0"
+# MODEL = "yanolja/EEVE-Korean-Instruct-10.8B-v1.0"
 # MODEL = "/home/privacy/KoAlpaca/train_v1.1b/eeve-10.8b-privacy-sentence"
+MODEL = "/home/privacy/KoAlpaca/train_v1.1b/eeve-10.8b-privacy-sentence-dedupname"
+# MODEL = "/home/privacy/KoAlpaca/train_v1.1b/eeve-10.8b-privacy-sentence-dedupname-memorize"
 tokenizer = AutoTokenizer.from_pretrained(MODEL)
 model = AutoModelForCausalLM.from_pretrained(
     MODEL,
@@ -29,43 +31,23 @@ pipe = pipeline(
 
 
 def answer(state, state_chatbot, text):
-    # messages = state + [{"role": "질문", "content": text}]
-    messages = state + [{"role": "user", "content": text}]
-    conversation_history = "\n".join(
-        [f"### {msg['role']}:\n{msg['content']}" for msg in messages]
-    )
-    
-    inputs = tokenizer.apply_chat_template(
-        messages,
-        add_generation_prompt=True,
-        tokenize=False,
-        # return_tensors="pt",
-    )#.to(model.device)
-    # print(inputs)
-
     terminators = [
         tokenizer.eos_token_id,
         tokenizer.convert_tokens_to_ids("<|eot_id|>")
     ]
 
     ans = pipe(
-        inputs,
+        text,
         do_sample=True,
         max_new_tokens=512,
-        temperature=0.7,
+        temperature=0.0001,
         top_p=0.9,
         return_full_text=False,
         eos_token_id=terminators,
     )
 
     msg = ans[0]["generated_text"]
-
-    if "###" in msg:
-        msg = msg.split("###")[0]
-
-    new_state = [{"role": "이전 질문", "content": text}, {"role": "이전 답변", "content": msg}]
-
-    state = state + new_state
+    
     state_chatbot = state_chatbot + [(text, msg)]
 
     print(state)
@@ -75,14 +57,7 @@ def answer(state, state_chatbot, text):
 
 
 with gr.Blocks(css="#chatbot .overflow-y-auto{height:750px}") as demo:
-    state = gr.State(
-        [
-            {
-                "role": "system", 
-                "content": "친절한 챗봇으로서 상대방의 요청에 최대한 자세하고 친절하게 답하자. 모든 대답은 한국어(Korean)으로 대답해줘."
-            },
-        ]
-    )
+    state = gr.State([])
     state_chatbot = gr.State([])
 
     with gr.Row():
