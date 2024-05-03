@@ -138,3 +138,5 @@ dmypy.json
 *.bin
 *.pth
 *.pt
+*.csv
+train_v1.1b/*/*

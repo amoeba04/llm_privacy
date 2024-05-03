@@ -12,7 +12,7 @@ from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer
 # MODEL = "/home/privacy/KoAlpaca/train_v1.1b/eeve-10.8b-privacy-sentence"
 # MODEL = "/home/privacy/KoAlpaca/train_v1.1b/eeve-10.8b-privacy-sentence-dedupname"
 # MODEL = "/home/privacy/KoAlpaca/train_v1.1b/eeve-10.8b-privacy-sentence-dedupname-memorize"
-MODEL = "/home/privacy/KoAlpaca/train_v1.1b/eeve-10.8b-privacy-sentence-dedupname-redup-level100"
+MODEL = "/home/privacy/KoAlpaca/train_v1.1b/eeve-10.8b-privacy-phonenumber-dedupname-redup-level10"
 tokenizer = AutoTokenizer.from_pretrained(MODEL)
 model = AutoModelForCausalLM.from_pretrained(
     MODEL,
