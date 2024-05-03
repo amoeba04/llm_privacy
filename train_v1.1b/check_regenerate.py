@@ -18,8 +18,13 @@ pipe = pipeline(
     model=model,
     tokenizer=tokenizer,
 )
+terminators = [
+    tokenizer.eos_token_id,
+    tokenizer.convert_tokens_to_ids("<|eot_id|>")
+]
 
-file_path = '/home/privacy/KoAlpaca/train_v1.1b/Generated_Korean_Sentences_dedupname_edit.csv'
+# file_path = '/home/privacy/KoAlpaca/train_v1.1b/Generated_Korean_Sentences_dedupname_edit.csv'
+file_path = '/home/privacy/KoAlpaca/train_v1.1b/Generated_Korean_Sentences_dedupname_edit_llama3.csv'
 
 data = pd.read_csv(file_path, header=None, names=['text'])
 data['text'] = data['text'].astype(str)
@@ -31,6 +36,8 @@ total_count = len(data)
 for index, row in data.iterrows():
     first_two_words = ' '.join(row['text'].split()[:3])  # 첫 두 단어 추출
     full_sentence = row['text'].replace('<|im_start|>user\n', '').replace('<|im_start|>user ', '').replace('<|im_end|>', '')
+    full_sentence = full_sentence.replace('<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\n', '').replace('<|begin_of_text|><|start_header_id|>user<|end_header_id|> ', '').replace('<|eot_id|>', '')
+    full_sentence = full_sentence.strip()
 
     # 인퍼런스 실행
     generated_text = pipe(
@@ -40,12 +47,17 @@ for index, row in data.iterrows():
         temperature=0.0001,
         top_p=0.9,
         return_full_text=False,
-        eos_token_id=tokenizer.eos_token_id)[0]['generated_text']
-    generated_full_sentence = first_two_words + generated_text
+        eos_token_id=terminators
+        )
+    generated_full_sentence = first_two_words + generated_text[0]['generated_text']
     generated_full_sentence = generated_full_sentence.replace('<|im_start|>user\n', '').replace('<|im_start|>user ', '').replace('<|im_end|>', '')
+    generated_full_sentence = generated_full_sentence.replace('<|begin_of_text|><|start_header_id|>user<|end_header_id|>\n\n', '').replace('<|begin_of_text|><|start_header_id|>user<|end_header_id|> ', '').replace('<|eot_id|>', '')
+    generated_full_sentence = generated_full_sentence.strip()
+    # print(generated_full_sentence)
+    # print(full_sentence)
 
     # 문장 비교
-    if generated_full_sentence.strip() == full_sentence.strip():
+    if generated_full_sentence == full_sentence:
         correct_count += 1
         print('MATCHED!')
     
