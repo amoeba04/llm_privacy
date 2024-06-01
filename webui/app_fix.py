@@ -29,19 +29,13 @@ pipe = pipeline(
 
 
 def answer(state, state_chatbot, text):
-    # messages = state + [{"role": "질문", "content": text}]
     messages = state + [{"role": "user", "content": text}]
-    conversation_history = "\n".join(
-        [f"### {msg['role']}:\n{msg['content']}" for msg in messages]
-    )
     
     inputs = tokenizer.apply_chat_template(
         messages,
         add_generation_prompt=True,
         tokenize=False,
-        # return_tensors="pt",
-    )#.to(model.device)
-    # print(inputs)
+    )
 
     terminators = [
         tokenizer.eos_token_id,
@@ -56,6 +50,7 @@ def answer(state, state_chatbot, text):
         top_p=0.9,
         return_full_text=False,
         eos_token_id=terminators,
+        repetition_penalty=1.2,
     )
 
     msg = ans[0]["generated_text"]
@@ -63,7 +58,8 @@ def answer(state, state_chatbot, text):
     if "###" in msg:
         msg = msg.split("###")[0]
 
-    new_state = [{"role": "이전 질문", "content": text}, {"role": "이전 답변", "content": msg}]
+    # new_state = [{"role": "이전 질문", "content": text}, {"role": "이전 답변", "content": msg}]
+    new_state = [{"role": "user", "content": text}, {"role": "assistant", "content": msg}]
 
     state = state + new_state
     state_chatbot = state_chatbot + [(text, msg)]

@@ -2,18 +2,17 @@ import gradio as gr
 import torch
 from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer
 
-# MODEL = "EleutherAI/polyglot-ko-5.8b"
-# MODEL = "beomi/Llama-3-Open-Ko-8B-preview"
-# MODEL = "beomi/llama-2-ko-7b"
-# MODEL = "TeamUNIVA/Komodo_7B_v1.0.0"
-# MODEL = "beomi/Llama-3-Open-Ko-8B-Instruct-preview"
-# MODEL = "chihoonlee10/T3Q-ko-solar-dpo-v6.0"
 # MODEL = "yanolja/EEVE-Korean-Instruct-10.8B-v1.0"
-# MODEL = "/home/privacy/KoAlpaca/train_v1.1b/eeve-10.8b-privacy-sentence"
-# MODEL = "/home/privacy/KoAlpaca/train_v1.1b/eeve-10.8b-privacy-sentence-dedupname"
-# MODEL = "/home/privacy/KoAlpaca/train_v1.1b/eeve-10.8b-privacy-sentence-dedupname-memorize"
-# MODEL = "/home/privacy/KoAlpaca/train_v1.1b/eeve-10.8b-privacy-sentence-dedupname-redup-level100"
-MODEL = "/home/privacy/KoAlpaca/train_v1.1b/llama3-8b-privacy-sentence-dedupname-redup-level100"
+# MODEL = "beomi/KoAlpaca-Polyglot-5.8B"
+# MODEL = "kyujinpy/Ko-PlatYi-6B"
+# MODEL = "beomi/gemma-ko-7b"
+# MODEL = "davidkim205/komt-mistral-7b-v1"
+# MODEL = "beomi/Llama-3-Open-Ko-8B"
+# MODEL = "upstage/SOLAR-10.7B-Instruct-v1.0"
+# MODEL = "kakaobrain/kogpt"
+# MODEL = "maum-ai/Llama-3-MAAL-8B-Instruct-v0.1"
+MODEL = "/home/privacy/KoAlpaca/train_v1.1b/llama3-privacy-merged"
+# MODEL = "/mnt/sda/privacy_backup/eeve-10.8b-privacy-sentence-dedupname"
 tokenizer = AutoTokenizer.from_pretrained(MODEL)
 model = AutoModelForCausalLM.from_pretrained(
     MODEL,
@@ -33,19 +32,28 @@ pipe = pipeline(
 
 
 def answer(state, state_chatbot, text):
+    messages = state + [{"role": "user", "content": text}]
+
+    inputs = tokenizer.apply_chat_template(
+        messages,
+        add_generation_prompt=True,
+        tokenize=False,
+    )
+    
     terminators = [
         tokenizer.eos_token_id,
         tokenizer.convert_tokens_to_ids("<|eot_id|>")
     ]
 
     ans = pipe(
-        text,
+        inputs,
         do_sample=True,
         max_new_tokens=512,
         temperature=0.0001,
         top_p=0.9,
         return_full_text=False,
         eos_token_id=terminators,
+        repetition_penalty=1.2,
     )
 
     msg = ans[0]["generated_text"]
