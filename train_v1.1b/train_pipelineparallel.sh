@@ -17,22 +17,20 @@
 # --low_cpu_mem_usage \
 # --overwrite_output_dir
 
-CUDA_VISIBLE_DEVICES=1,2,3,4 python run_clm.py \
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5 python run_clm.py \
 --model_name_or_path='yanolja/EEVE-Korean-Instruct-10.8B-v1.0' \
---train_file='./Korean_Personal_Information_Sentences_edit.csv' \
---num_train_epochs=1 \
+--train_file='./Merged_Instruction_eeve1000.csv' \
+--num_train_epochs=3 \
 --block_size=1024 \
---per_device_train_batch_size=1 \
+--per_device_train_batch_size=4 \
 --gradient_accumulation_steps=8 \
 --fp16 \
---output_dir='eeve-10.8b-privacy-sentence' \
+--output_dir='eeve-privacy-merged1000' \
 --do_train \
 --optim='adafactor' \
 --learning_rate='2e-5' \
 --logging_strategy='steps' \
 --logging_first_step \
---run_name='eeve-10.8b-privacy-sentence' \
 --low_cpu_mem_usage \
 --overwrite_output_dir \
---save_steps 200 \
---save_total_limit 1
+--save_strategy='epoch'
