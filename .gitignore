@@ -132,11 +132,14 @@ dmypy.json
 .DS_Store
 .idea
 
-# 
+# etc.
 *.safetensors
 *.json
+*.jsonl
 *.bin
 *.pth
 *.pt
 *.csv
+*.txt
+*.pickle
 train_v1.1b/*/*
