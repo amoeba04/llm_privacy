@@ -1,14 +1,35 @@
 import pandas as pd
 from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer
 from peft import AutoPeftModelForCausalLM
+import argparse
 
-# MODEL = "eeve-lora-privacy-merged1000"
-MODEL = "eeve-lora-privacy-kocommercial1000"
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Script for processing data')
+    parser.add_argument('--model', type=str, default="eeve-lora-privacy-merged1000",
+                        help='Path to the model')
+    parser.add_argument('--file_path', type=str, default='Korean_Personal_Instruction_eeve_selected1000.csv',
+                        help='Path to the input CSV file')
+    parser.add_argument('--output_path', type=str, default='Generated_1000_KoCommercial_3ep_LoRA_', 
+                        help='Path for the output file')
+    parser.add_argument('--batch_size', type=int, default=4,
+                        help='Batch size for processing')
+    
+    args = parser.parse_args()
+    
+    # If output_path is not provided, generate it based on file_path
+    if args.output_path is None:
+        args.output_path = 'Generated_1000_Merged_1ep_' + args.file_path.split('/')[-1]
+    
+    return args
 
-file_path = 'KoCommercial_eeve.csv'
-output_path = 'Generated_1000_KoCommercial_3ep_LoRA_' + file_path
+# Parse command-line arguments
+args = parse_arguments()
 
-batch_size = 4
+# Use the parsed arguments
+MODEL = args.model
+file_path = args.file_path
+output_path = args.output_path + file_path
+batch_size = args.batch_size
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL)
 model = AutoPeftModelForCausalLM.from_pretrained(
@@ -80,7 +101,7 @@ for i in range(0, len(data), batch_size):
     generated_texts = pipe(
         inputs_batch,
         do_sample=True,
-        max_new_tokens=512,
+        max_new_tokens=64,
         temperature=0.0001,
         top_p=0.9,
         return_full_text=False,

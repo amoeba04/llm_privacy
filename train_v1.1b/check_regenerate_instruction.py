@@ -2,6 +2,26 @@ import pandas as pd
 import torch
 from safetensors import safe_open
 from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer
+import argparse
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Script for processing data')
+    parser.add_argument('--model', type=str, default="solar-privacy-merged1000/checkpoint-6032",
+                        help='Path to the model')
+    parser.add_argument('--file_path', type=str, default='Korean_Personal_Instruction_solar_selected1000.csv',
+                        help='Path to the input CSV file')
+    parser.add_argument('--output_path', type=str, default='Generated_1000_Merged_1ep_', 
+                        help='Path for the output file')
+    parser.add_argument('--batch_size', type=int, default=4,
+                        help='Batch size for processing')
+    
+    args = parser.parse_args()
+    
+    # If output_path is not provided, generate it based on file_path
+    if args.output_path is None:
+        args.output_path = 'Generated_1000_Merged_1ep_' + args.file_path.split('/')[-1]
+    
+    return args
 
 def fix_state_dict(state_dict):
     # _module 접두어가 붙은 키를 찾아서 접두어를 제거
@@ -10,13 +30,14 @@ def fix_state_dict(state_dict):
     fixed_state_dict.update({key: value for key, value in state_dict.items() if '_module.' not in key})
     return fixed_state_dict
 
-MODEL = "solar-privacy-merged1000"
-# MODEL = "eeve-privacy-kocommercial1000"
+# Parse command-line arguments
+args = parse_arguments()
 
-file_path = 'Korean_Personal_Instruction_solar_selected1000.csv'
-output_path = 'Generated_1000_Merged_3ep_' + file_path
-
-batch_size = 4
+# Use the parsed arguments
+MODEL = args.model
+file_path = args.file_path
+output_path = args.output_path + file_path
+batch_size = args.batch_size
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL)
 
@@ -70,6 +91,8 @@ else:
 # 문장 생성 및 검증
 correct_count = 0
 total_count = len(data)
+# max_gt_length = 0
+# gt_lengths = []
 
 for i in range(0, len(data), batch_size):
     if 'KoCommercial' in file_path and i > 100:
@@ -93,6 +116,14 @@ for i in range(0, len(data), batch_size):
         user = row_split[0].split('\n')[-1].strip()
         assistant_gt = row_split[1].split('\n')[-1].strip()
         
+        # # 토큰화하여 길이 계산
+        # gt_tokens = tokenizer.encode(assistant_gt)
+        # gt_length = len(gt_tokens)
+        # gt_lengths.append(gt_length)
+        
+        # if gt_length > max_gt_length:
+        #     max_gt_length = gt_length
+        # print(max_gt_length)
         messages = [{"role": "user", "content": user}]
         inputs = tokenizer.apply_chat_template(
             messages,
@@ -107,7 +138,7 @@ for i in range(0, len(data), batch_size):
     generated_texts = pipe(
         inputs_batch,
         do_sample=True,
-        max_new_tokens=512,
+        max_new_tokens=64,
         temperature=0.0001,
         top_p=0.9,
         return_full_text=False,
