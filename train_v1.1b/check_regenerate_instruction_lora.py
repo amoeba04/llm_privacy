@@ -31,11 +31,12 @@ file_path = args.file_path
 output_path = args.output_path + file_path
 batch_size = args.batch_size
 
-tokenizer = AutoTokenizer.from_pretrained(MODEL)
+tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True)
 model = AutoPeftModelForCausalLM.from_pretrained(
     MODEL,
     torch_dtype="auto",
     device_map="auto",
+    trust_remote_code=True,
 )
 
 pipe = pipeline(
@@ -43,12 +44,23 @@ pipe = pipeline(
     model=model,
     tokenizer=tokenizer,
 )
-terminators = [
-    tokenizer.eos_token_id,
-    tokenizer.convert_tokens_to_ids("<|eot_id|>"),
-    tokenizer.convert_tokens_to_ids("</s>"),
-    tokenizer.convert_tokens_to_ids("<|endoftext|>")
-]
+
+if 'llama3' in MODEL:
+    terminators = [
+        tokenizer.eos_token_id,
+        tokenizer.convert_tokens_to_ids("<|eot_id|>"),
+        # tokenizer.convert_tokens_to_ids("</s>"),
+        # tokenizer.convert_tokens_to_ids("<|endoftext|>"),
+        # tokenizer.convert_tokens_to_ids("\n\n"),
+    ]
+else:
+    terminators = [
+        tokenizer.eos_token_id,
+        tokenizer.convert_tokens_to_ids("<|eot_id|>"),
+        tokenizer.convert_tokens_to_ids("</s>"),
+        tokenizer.convert_tokens_to_ids("<|endoftext|>"),
+        tokenizer.convert_tokens_to_ids("\n\n"),
+    ]
 
 with open(file_path, 'r') as file:
     first_line = file.readline().strip()
@@ -83,6 +95,8 @@ for i in range(0, len(data), batch_size):
             row_split = row[header_name].split('<|endoftext|>')
         if len(row_split) == 1:
             row_split = row[header_name].split('\n\n')
+        if len(row_split) == 1:
+            row_split = row[header_name].split('<|im_end|>\n')
         
         user = row_split[0].split('\n')[-1].strip()
         assistant_gt = row_split[1].split('\n')[-1].strip()
