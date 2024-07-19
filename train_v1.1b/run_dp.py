@@ -43,7 +43,6 @@ from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     HfArgumentParser,
-    Trainer,
     TrainingArguments,
     default_data_collator,
     is_torch_tpu_available,
@@ -54,7 +53,10 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
 
-import dp_transformers
+from private_transformers import PrivacyEngine
+
+from trainer_dp import Trainer
+
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 # check_min_version("4.29.0.dev0")
@@ -227,18 +229,73 @@ class DataTrainingArguments:
                 assert extension in ["csv", "json", "txt", "jsonl"], "`validation_file` should be a csv, a json or a txt file."
 
 
+@dataclass
+class PrivacyArguments:
+    """Arguments for differentially private training."""
+
+    per_example_max_grad_norm: float = field(
+        default=.1, metadata={
+            "help": "Clipping 2-norm of per-sample gradients."
+        }
+    )
+    noise_multiplier: float = field(
+        default=None, metadata={
+            "help": "Standard deviation of noise added for privacy; if `target_epsilon` is specified, "
+                    "use the one searched based budget"
+        }
+    )
+    target_epsilon: float = field(
+        default=None, metadata={
+            "help": "Privacy budget; if `None` use the noise multiplier specified."
+        }
+    )
+    target_delta: float = field(
+        default=None, metadata={
+            "help": "Lax probability in approximate differential privacy; if `None` use 1 / len(train_data)."
+        }
+    )
+    non_private: str = field(
+        default="no", metadata={"help": "Train non-privately if True."}
+    )
+    accounting_mode: str = field(
+        default="rdp", metadata={"help": "One of (`rdp`, `glw`, `all`)."}
+    )
+    clipping_mode: str = field(
+        default="default"
+    )
+
+    def __post_init__(self):
+        self.non_private = self.non_private.lower() in true_tags  # noqa
+
+true_tags = ('y', 'yes', 't', 'true')
+
+@dataclass
+class AuxiliaryArguments:
+    eval_spectrum: str = field(default="no")
+    max_spectrum_batches: int = field(default=100)
+    max_lanczos_iter: int = field(default=100)
+
+    store_grads: str = field(default="no")
+    orthogonal_projection_path: Optional[str] = field(default=None)
+    orthogonal_projection_rank: int = field(default=100)
+
+    def __post_init__(self):
+        self.eval_spectrum = self.eval_spectrum.lower() in true_tags  # noqa
+        self.store_grads = self.store_grads.lower() in true_tags  # noqa
+
+
 def main():
     # See all possible arguments in src/transformers/training_args.py
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments, dp_transformers.PrivacyArguments))
+    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments, PrivacyArguments, AuxiliaryArguments))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
         model_args, data_args, training_args = parser.parse_json_file(json_file=os.path.abspath(sys.argv[1]))
     else:
-        model_args, data_args, training_args, privacy_args = parser.parse_args_into_dataclasses()
+        model_args, data_args, training_args, privacy_args, auxiliary_args = parser.parse_args_into_dataclasses()
 
     # Sending telemetry. Tracking the example usage helps us better allocate resources to maintain them. The
     # information sent is the one passed as arguments along with your Python/PyTorch versions.
@@ -560,46 +617,49 @@ def main():
             labels = labels[:, 1:].reshape(-1)
             preds = preds[:, :-1].reshape(-1)
             return metric.compute(predictions=preds, references=labels)
-
-    # Initialize our Trainer
-    # trainer = Trainer(
-    #     model=model,
-    #     args=training_args,
-    #     train_dataset=train_dataset if training_args.do_train else None,
-    #     eval_dataset=eval_dataset if training_args.do_eval else None,
-    #     tokenizer=tokenizer,
-    #     # Data collator will default to DataCollatorWithPadding, so we change it.
-    #     data_collator=default_data_collator,
-    #     compute_metrics=compute_metrics if training_args.do_eval and not is_torch_tpu_available() else None,
-    #     preprocess_logits_for_metrics=preprocess_logits_for_metrics
-    #     if training_args.do_eval and not is_torch_tpu_available()
-    #     else None,
-    # )
     
-    tokenizer.pad_token = tokenizer.eos_token
-    data_collator = dp_transformers.DataCollatorForPrivateCausalLanguageModeling(tokenizer)
-    trainer = dp_transformers.dp_utils.OpacusDPTrainer(
+    # Initialize our Trainer
+    trainer = Trainer(
         model=model,
         args=training_args,
+        privacy_args=privacy_args,
+        auxiliary_args=auxiliary_args,
         train_dataset=train_dataset if training_args.do_train else None,
         eval_dataset=eval_dataset if training_args.do_eval else None,
         tokenizer=tokenizer,
-        data_collator=data_collator,
-        privacy_args=privacy_args,
+        # Data collator will default to DataCollatorWithPadding, so we change it.
+        data_collator=default_data_collator,
         compute_metrics=compute_metrics if training_args.do_eval and not is_torch_tpu_available() else None,
         preprocess_logits_for_metrics=preprocess_logits_for_metrics
         if training_args.do_eval and not is_torch_tpu_available()
         else None,
+        vocab_size=config.vocab_size,
     )
+    # total_train_batch_size = training_args.gradient_accumulation_steps * training_args.per_device_train_batch_size
+    # privacy_engine = PrivacyEngine(
+    #     module=model,
+    #     batch_size=total_train_batch_size,
+    #     sample_size=len(train_dataset),
+    #     epochs=training_args.num_train_epochs,
+    #     max_grad_norm=privacy_args.per_example_max_grad_norm,
+    #     noise_multiplier=privacy_args.noise_multiplier,
+    #     target_epsilon=privacy_args.target_epsilon,
+    #     target_delta=privacy_args.target_delta,
+    #     accounting_mode=privacy_args.accounting_mode,
+    #     clipping_mode=privacy_args.clipping_mode,
+    #     skip_checks=True,
+    # )
+    # optimizer = trainer.optimizer = trainer.create_optimizer()
+    # # Originally, it could have been null.
+    # privacy_args.noise_multiplier = privacy_engine.noise_multiplier
+    # privacy_args.target_delta = privacy_engine.target_delta
+
+    # privacy_engine.attach(optimizer)
+
 
     # Training
     if training_args.do_train:
-        checkpoint = None
-        if training_args.resume_from_checkpoint is not None:
-            checkpoint = training_args.resume_from_checkpoint
-        elif last_checkpoint is not None:
-            checkpoint = last_checkpoint
-        train_result = trainer.train(resume_from_checkpoint=checkpoint)
+        train_result = trainer.train()
         model.to(torch.bfloat16)
         trainer.save_model()  # Saves the tokenizer too for easy upload
 

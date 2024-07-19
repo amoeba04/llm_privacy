@@ -1,13 +1,12 @@
-# Opacus and DP-transformer don't support pipeline parallel by itself...
-CUDA_VISIBLE_DEVICES=4 python run_dp.py \
---model_name_or_path='apple/OpenELM-1_1B' \
---tokenizer_name='NousResearch/Llama-2-7b-hf' \
---train_file='./Merged_Instruction_openelm1000.csv' \
+# Pipeline Parallel, but little more gradient calculation on cuda:0
+CUDA_VISIBLE_DEVICES=4,5,6 python run_dp.py \
+--model_name_or_path='jungyuko/DAVinCI-42dot_LLM-PLM-1.3B-v1.2' \
+--train_file='./Merged_Instruction_davinci1000.csv' \
 --num_train_epochs=3 \
 --block_size=1024 \
---per_device_train_batch_size=4 \
---gradient_accumulation_steps=1 \
---output_dir='openelm-dp-privacy-merged1000' \
+--per_device_train_batch_size=1 \
+--gradient_accumulation_steps=16 \
+--output_dir='davinci-dp2-privacy-merged1000' \
 --do_train \
 --optim='adafactor' \
 --learning_rate='2e-5' \
@@ -17,4 +16,5 @@ CUDA_VISIBLE_DEVICES=4 python run_dp.py \
 --overwrite_output_dir \
 --save_strategy='epoch' \
 --target_epsilon 8 \
---per_sample_max_grad_norm 1.0
+--target_delta 1e-3 \
+# --clipping_mode='ghost'

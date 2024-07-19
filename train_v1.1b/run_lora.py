@@ -147,6 +147,22 @@ class ModelArguments:
         default=False,
         metadata={"help": "Whether to run the custom code or not."},
     )
+    lora_rank: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": (
+                "LoRA Rank"
+            )
+        },
+    )
+    lora_alpha: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": (
+                "LoRA Alpha"
+            )
+        },
+    )
 
     def __post_init__(self):
         if self.config_overrides is not None and (self.config_name is not None or self.model_name_or_path is not None):
@@ -439,15 +455,17 @@ def main():
     # print(model)
     # LoRA Configuration
     lora_config = LoraConfig(
-        r=16,
-        target_modules=["c_attn"], #["q_proj", "k_proj", "v_proj"],
+        r=model_args.lora_rank,
+        target_modules=["q_proj", "k_proj", "v_proj"], #,["c_attn"]
         task_type=TaskType.CAUSAL_LM,
-        lora_alpha=32,
+        lora_alpha=model_args.lora_alpha,
         lora_dropout=0.05
     )
 
     # LoRA model setting
     model = get_peft_model(model, lora_config)
+    # print(model)
+    # exit()
     model.print_trainable_parameters()
     
     # We resize the embeddings only when necessary to avoid index errors. If you are creating a model from scratch
