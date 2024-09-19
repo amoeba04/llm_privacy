@@ -11,7 +11,8 @@ from transformers import pipeline, AutoModelForCausalLM, AutoTokenizer
 # MODEL = "upstage/SOLAR-10.7B-Instruct-v1.0"
 # MODEL = "kakaobrain/kogpt"
 # MODEL = "maum-ai/Llama-3-MAAL-8B-Instruct-v0.1"
-MODEL = "/home/privacy/KoAlpaca/train_v1.1b/llama3-privacy-merged"
+# MODEL = "/home/privacy/KoAlpaca/train_v1.1b/davinci-dp2-privacy-merged1000"
+MODEL = '/home/privacy/KoAlpaca/train_v1.1b/unlearn/simple_neggrad/eeve-privacy-merged1000-simple_neggrad-2ep-lr5e_5'
 # MODEL = "/mnt/sda/privacy_backup/eeve-10.8b-privacy-sentence-dedupname"
 tokenizer = AutoTokenizer.from_pretrained(MODEL)
 model = AutoModelForCausalLM.from_pretrained(

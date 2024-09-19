@@ -6,17 +6,20 @@ import argparse
 from datasets import Dataset
 import torch
 from torch.utils.data import DataLoader
+import torch.nn.utils.prune as prune
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description='Script for processing data')
-    parser.add_argument('--model', type=str, default="eeve-privacy-merged1000",
+    parser.add_argument('--model', type=str, default="eeve-lora-privacy-merged1000",
                         help='Path to the model')
     parser.add_argument('--file_path', type=str, default='Korean_Personal_Instruction_eeve_selected1000.csv',
                         help='Path to the input CSV file')
-    parser.add_argument('--output_path', type=str, default='Generated_1000_Merged_3ep_', 
+    parser.add_argument('--output_path', type=str, default='Generated_1000_KoCommercial_3ep_LoRA_', 
                         help='Path for the output file')
     parser.add_argument('--batch_size', type=int, default=4,
                         help='Batch size for processing')
+    parser.add_argument('--prune_ratio', type=float, default=0.5,
+                        help='Pruning ratio')
     
     args = parser.parse_args()
     
@@ -65,10 +68,16 @@ batch_size = args.batch_size
 tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True, padding_side='left')
 model = AutoModelForCausalLM.from_pretrained(
     MODEL,
-    torch_dtype=torch.float16,
+    torch_dtype="auto",
     device_map="auto",
     trust_remote_code=True,
 )
+
+for name, module in model.named_modules():
+    if isinstance(module, torch.nn.Linear):
+        prune.l1_unstructured(module, name='weight', amount=args.prune_ratio)
+        prune.remove(module, 'weight')
+
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 

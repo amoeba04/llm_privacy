@@ -28,7 +28,7 @@ os.environ["WANDB_DISABLED"] = "true"
 import sys
 from dataclasses import dataclass, field
 from itertools import chain
-from typing import Optional, List
+from typing import Optional
 
 import datasets
 import evaluate
@@ -53,9 +53,6 @@ from transformers.testing_utils import CaptureLogger
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
-
-from peft import LoraConfig, TaskType
-from peft import get_peft_model
 
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
@@ -147,29 +144,8 @@ class ModelArguments:
         default=False,
         metadata={"help": "Whether to run the custom code or not."},
     )
-    lora_rank: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": (
-                "LoRA Rank"
-            )
-        },
-    )
-    lora_alpha: Optional[int] = field(
-        default=None,
-        metadata={
-            "help": (
-                "LoRA Alpha"
-            )
-        },
-    )
-    lora_target_modules: Optional[List[str]] = field(
-        default_factory=list,
-        metadata={
-            "help": (
-                "List of LoRA target modules. Example: ['q_proj', 'k_proj', 'v_proj', 'o_proj']"
-            )
-        },
+    noise_std: Optional[float] = field(
+        default=0.0,
     )
 
     def __post_init__(self):
@@ -459,28 +435,7 @@ def main():
         model = AutoModelForCausalLM.from_config(config)
         n_params = sum({p.data_ptr(): p.numel() for p in model.parameters()}.values())
         logger.info(f"Training new model from scratch - Total size={n_params/2**20:.2f}M params")
-    
-    # print(model)
-    # LoRA Configuration
-    lora_config = LoraConfig(
-        r=model_args.lora_rank,
-        target_modules=model_args.lora_target_modules,
-        task_type=TaskType.CAUSAL_LM,
-        lora_alpha=model_args.lora_alpha,
-        lora_dropout=0.05
-    )
 
-    # LoRA model setting
-    model = get_peft_model(model, lora_config)
-    # print(model)
-    def check_requires_grad(model):
-        for name, param in model.named_parameters():
-            if 'layers.0.' in name:
-                print(f'{name}: requires_grad = {param.requires_grad}')
-    check_requires_grad(model)
-    model.print_trainable_parameters()
-    # exit()
-    
     # We resize the embeddings only when necessary to avoid index errors. If you are creating a model from scratch
     # on a small vocab and want a smaller embedding size, remove this test.
     embedding_size = model.get_input_embeddings().weight.shape[0]
@@ -614,6 +569,72 @@ def main():
             labels = labels[:, 1:].reshape(-1)
             preds = preds[:, :-1].reshape(-1)
             return metric.compute(predictions=preds, references=labels)
+    
+    from transformers import TrainerCallback
+    from collections import defaultdict
+
+    class GradientNoiseCallback(TrainerCallback):
+        def on_step_end(self, args, state, control, **kwargs):
+            model = kwargs['model']
+            
+            grads_by_device = defaultdict(list)
+            for param in model.parameters():
+                if param is not None:
+                    grads_by_device[param.device].append(param)
+
+            with torch.no_grad():
+                for device, grads in grads_by_device.items():
+                    # gradients를 하나의 텐서로 결합 (각 gradient 텐서는 별도의 블록으로 저장됨)
+                    flat_grads = torch.cat([grad.view(-1) for grad in grads])
+
+                    # 동일한 크기의 noise 텐서 생성
+                    noise = torch.normal(0, 0.0000001, size=flat_grads.shape, device=device)
+                    flat_grads.add_(noise)
+
+                    # 결합된 텐서를 다시 원래 gradient 텐서 모양으로 나누기
+                    idx = 0
+                    for grad in grads:
+                        grad_size = grad.numel()
+                        grad.add_(flat_grads[idx:idx + grad_size].view_as(grad))
+                        idx += grad_size
+            
+            # 메모리 해제
+            del flat_grads
+            del noise
+            del grads_by_device
+            torch.cuda.empty_cache()
+
+    
+    from transformers import LlamaForCausalLM
+    class NoisyLlamaForCausalLM(LlamaForCausalLM):
+        def forward(self, *args, **kwargs):
+            outputs = super().forward(*args, **kwargs)
+            
+            hidden_states = outputs[0]  # layers에 들어가기 직전의 feature (embed_tokens 직후)
+            
+            # Gaussian noise 추가
+            noise = torch.normal(0, 0.1, size=hidden_states.shape).to(hidden_states.device)
+            hidden_states = hidden_states + noise
+
+            # 업데이트된 hidden_states를 layers로 전달
+            new_outputs = self.model.layers(hidden_states, **kwargs)
+
+            return new_outputs
+
+    def add_noise_to_embedding(model, noise_std):
+        original_forward = model.model.embed_tokens.forward
+        
+        def noisy_forward(input: torch.Tensor) -> torch.Tensor:
+            output = original_forward(input)
+            
+            # Gaussian noise 추가
+            noise = torch.normal(0, noise_std, size=output.shape).to(output.device)
+            return output + noise
+        
+        model.model.embed_tokens.forward = noisy_forward
+    
+    # 노이즈 추가 함수 적용
+    add_noise_to_embedding(model, model_args.noise_std)
 
     # Initialize our Trainer
     trainer = Trainer(
@@ -628,6 +649,7 @@ def main():
         preprocess_logits_for_metrics=preprocess_logits_for_metrics
         if training_args.do_eval and not is_torch_tpu_available()
         else None,
+        # callbacks=[GradientNoiseCallback()],
     )
 
     # Training

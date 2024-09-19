@@ -76,6 +76,7 @@ else:
 # 문장 생성 및 검증
 correct_count = 0
 total_count = len(data)
+max_length = 0
 
 for i in range(0, len(data), batch_size):
     if 'KoCommercial' in file_path and i > 100:
@@ -109,15 +110,20 @@ for i in range(0, len(data), batch_size):
         )
         inputs_batch.append(inputs)
         full_sentences_batch.append((user, assistant_gt))
-    print(full_sentences_batch)
+        
+        tokens = tokenizer.encode(assistant_gt, add_special_tokens=False, return_tensors="pt")
+        length = tokens.size(1)
+        max_length = max(max_length, length)
+    
+    print(max_length, full_sentences_batch)
     
     # 배치 인퍼런스 실행
     generated_texts = pipe(
         inputs_batch,
-        do_sample=True,
-        max_new_tokens=64,
-        temperature=0.0001,
-        top_p=0.9,
+        do_sample=False,
+        max_new_tokens=max_length,
+        # temperature=0.0001,
+        # top_p=0.9,
         return_full_text=False,
         eos_token_id=terminators,
         repetition_penalty=1.5,
@@ -137,6 +143,7 @@ for i in range(0, len(data), batch_size):
         # 결과 저장
         data.at[i+j, 'generated_full_sentence'] = generated_full_sentence
         data.at[i+j, 'full_sentence'] = full_sentence
+        # print(generated_full_sentence)
     
     print(f"Batch {i//batch_size + 1} checked.")
 

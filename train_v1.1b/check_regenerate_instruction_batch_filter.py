@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorWithPadding
+from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorWithPadding, AutoModelForTokenClassification, pipeline
 from peft import AutoPeftModelForCausalLM
 import argparse
 from datasets import Dataset
@@ -17,6 +17,8 @@ def parse_arguments():
                         help='Path for the output file')
     parser.add_argument('--batch_size', type=int, default=4,
                         help='Batch size for processing')
+    parser.add_argument('--input_filter', action='store_true', help='Input Filtering')
+    parser.add_argument('--output_filter', action='store_true', help='Output Filtering')
     
     args = parser.parse_args()
     
@@ -116,10 +118,39 @@ results = []
 
 model.eval()
 
+### Load Korean NER model ###
+if args.input_filter or args.output_filter:
+    ner_tokenizer = AutoTokenizer.from_pretrained("Leo97/KoELECTRA-small-v3-modu-ner")
+    ner_model = AutoModelForTokenClassification.from_pretrained("Leo97/KoELECTRA-small-v3-modu-ner")
+    ner = pipeline("ner", model=ner_model, tokenizer=ner_tokenizer)
+
+
 for batch in dataloader:
     with torch.no_grad():
         batch = {k: v.to(model.device) for k, v in batch.items()}
-        
+        if args.input_filter:   # TODO: batch process update
+            inputs = tokenizer.batch_decode(batch["input_ids"], skip_special_tokens=True)
+            
+            filtered_inputs = []
+            for input_text in inputs:
+                ner_results = ner(input_text)
+                
+                filtered_text = input_text
+                offset = 0
+                for entity in ner_results:
+                    start = entity['start'] + offset
+                    end = entity['end'] + offset
+                    tag = entity['entity']
+
+                    filtered_text = filtered_text[:start] + tag + filtered_text[end:]
+                    offset += len(tag) - (end - start)
+                
+                filtered_inputs.append(filtered_text)
+            filtered_batch = tokenizer(filtered_inputs, max_length=128, truncation=True, padding='max_length', return_tensors="pt").to(model.device)
+            
+            batch["input_ids"] = filtered_batch["input_ids"]
+            batch["attention_mask"] = filtered_batch["attention_mask"]
+            
         outputs = model.generate(
             input_ids=batch["input_ids"],
             attention_mask=batch["attention_mask"],
@@ -134,7 +165,20 @@ for batch in dataloader:
     ground_truth = tokenizer.batch_decode(batch["labels"], skip_special_tokens=True)
     
     for inp, generated_text, gt in zip(inputs, generated_texts, ground_truth):
-        generated_text = generated_text.replace(inp, "")
+        generated_text = generated_text.replace(inp, "")[:len(gt)]
+        
+        if args.output_filter:
+            ner_results = ner(generated_text)
+            filtered_sentence = generated_text
+            offset = 0
+            for entity in ner_results:
+                start = entity['start'] + offset
+                end = entity['end'] + offset
+                tag = entity['entity']
+                
+                generated_text = generated_text[:start] + tag + generated_text[end:]
+                offset += len(tag) - (end - start)
+                
         if generated_text in gt or gt in generated_text:
             correct_count += 1
             print(f'Memorized: {gt}')
