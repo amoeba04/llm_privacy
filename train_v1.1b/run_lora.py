@@ -475,8 +475,8 @@ def main():
     # print(model)
     def check_requires_grad(model):
         for name, param in model.named_parameters():
-            if 'layers.0.' in name:
-                print(f'{name}: requires_grad = {param.requires_grad}')
+            # if 'layers.0.' in name:
+            print(f'{name}: requires_grad = {param.requires_grad}')
     check_requires_grad(model)
     model.print_trainable_parameters()
     # exit()

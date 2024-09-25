@@ -63,7 +63,7 @@ output_path = args.output_path + os.path.basename(file_path)
 batch_size = args.batch_size
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL, trust_remote_code=True, padding_side='left')
-model = AutoModelForCausalLM.from_pretrained(
+model = AutoPeftModelForCausalLM.from_pretrained(
     MODEL,
     torch_dtype="auto",
     device_map="auto",
